@@ -1,4 +1,14 @@
 {
   "version": 1,
-  "deployAliases": {}
+  "deployAliases": {
+    "guessdevnet": {
+      "networkId": "testnet",
+      "url": "https://api.minascan.io/node/devnet/v1/graphql",
+      "keyPath": "keys/guessdevnet.json",
+      "feepayerKeyPath": "/home/nverma_36/.cache/zkapp-cli/keys/deployer_acc_nv.json",
+      "feepayerAlias": "deployer_acc_nv",
+      "fee": "0.1",
+      "smartContract": "GuessGame"
+    }
+  }
 }
