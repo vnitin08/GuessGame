@@ -1,4 +1,13 @@
-import { Field, MerkleMap, MerkleMapWitness, method, Poseidon, SmartContract, State, state } from 'o1js';
+import { Field, MerkleMap, MerkleMapWitness, method, Poseidon, SmartContract, State, state, Struct } from 'o1js';
+
+export class HiddenValue extends Struct({
+    value: Field,
+    salt: Field,
+  }) {
+    hash(): Field {
+      return Poseidon.hash([this.value, this.salt]);
+    }
+  }
 
 export class GuessGame extends SmartContract {
     @state(Field) hiddenNumber = State<Field>();
@@ -10,14 +19,17 @@ export class GuessGame extends SmartContract {
         this.scoreRoot.set(new MerkleMap().getRoot());
     }
 
-    @method async hideNumber(number: Field) {
+    @method async hideNumber(hiddenValue: HiddenValue) {
         let curHiddenNumber = this.hiddenNumber.getAndRequireEquals();
-
+    
         curHiddenNumber.assertEquals(Field(0), 'Number is already hidden');
-
-        number.assertLessThan(Field(100), 'Value should be less then 100');
-
-        this.hiddenNumber.set(Poseidon.hash([number]));
+    
+        hiddenValue.value.assertLessThan(
+          Field(100),
+          'Value should be less then 100'
+        );
+    
+        this.hiddenNumber.set(hiddenValue.hash());
     }
 
     @method async guessNumber(
