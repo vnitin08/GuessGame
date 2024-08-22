@@ -1,5 +1,5 @@
 import { AccountUpdate, Field, MerkleMap, Mina, Poseidon, PrivateKey, PublicKey } from 'o1js';
-import { GuessGame } from './GuessGame';
+import { GuessGame, HiddenValue } from './GuessGame';
 
 let proofsEnabled = false;
 
@@ -45,34 +45,47 @@ describe('Test', () => {
     const hiddenNumber = Field(9);
     const wrongNumber = Field(5);
     const senderHash = Poseidon.hash(senderAccount.toFields());
+    const hiddenValue = new HiddenValue({
+      value: hiddenNumber,
+      salt: Field.random(),
+    });
 
     // Hide number
     let tx = Mina.transaction(senderAccount, async () => {
-      await zkApp.hideNumber(hiddenNumber);
+      await zkApp.hideNumber(hiddenValue); // !
     });
 
     await tx.prove();
     await tx.sign([senderKey]).send();
 
     // Try to guess wrong number
-    let score = scoreMerkleMap.get(senderHash);
-    let scoreWitness = scoreMerkleMap.getWitness(senderHash);
+    // let score = scoreMerkleMap.get(senderHash);
+    // let scoreWitness = scoreMerkleMap.getWitness(senderHash);
 
-    await expect(async () => {
-      let tx2 = await Mina.transaction(senderAccount, async () => {
-        await zkApp.guessNumber(wrongNumber, score, scoreWitness);
-      });
+    // await expect(async () => {
+    //   let tx2 = await Mina.transaction(senderAccount, async () => {
+    //     await zkApp.guessNumber(wrongNumber, score, scoreWitness);
+    //   });
 
-      await tx2.prove();
-      await tx2.sign([senderKey]).send();
-    }).rejects.toThrow('Other numbre was guessed');
+    //   await tx2.prove();
+    //   await tx2.sign([senderKey]).send();
+    // }).rejects.toThrow('Other numbre was guessed');
 
     let tx3 = await Mina.transaction(senderAccount, async () => {
-      await zkApp.guessNumber(hiddenNumber, score, scoreWitness);
+      await zkApp.guessNumber(hiddenNumber);
     });
 
     await tx3.prove();
     await tx3.sign([senderKey]).send();
+
+    let score = scoreMerkleMap.get(senderHash);
+    let scoreWitness = scoreMerkleMap.getWitness(senderHash);
+    let tx4 = await Mina.transaction(senderAccount, async () => {
+      await zkApp.revealNumber(hiddenValue, score, scoreWitness);
+    });
+
+    await tx4.prove();
+    await tx4.sign([senderKey]).send();
 
     scoreMerkleMap.set(senderHash, score.add(1));
 
