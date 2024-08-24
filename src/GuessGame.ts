@@ -1,4 +1,5 @@
-import { Field, MerkleMap, MerkleMapWitness, method, Poseidon, Provable, SmartContract, State, state, Struct } from 'o1js';
+import { Field, MerkleMap, MerkleMapWitness, method, Poseidon, Provable, SmartContract, State, state, Struct, UInt64 } from 'o1js';
+import { CheckProof, EQUALS } from './CheckProof';
 
 export class HiddenValue extends Struct({
     value: Field,
@@ -9,11 +10,15 @@ export class HiddenValue extends Struct({
     }
   }
 
+export const DefaultGuessLeft = UInt64.from(5);
+
 export class GuessGame extends SmartContract {
     @state(Field) hiddenNumber = State<Field>();
     @state(Field) scoreRoot = State<Field>();
     @state(Field) guessedNumber = State<Field>();
     @state(Field) guesser = State<Field>();
+    @state(UInt64) guessLeft = State<UInt64>();
+    @state(UInt64) clue = State<UInt64>();
 
     init() {
         super.init();
@@ -32,58 +37,73 @@ export class GuessGame extends SmartContract {
         );
     
         this.hiddenNumber.set(hiddenValue.hash());
+        this.guessLeft.set(DefaultGuessLeft);
     }
 
     @method async guessNumber(number: Field) {
+        let curGuessLeft = this.guessLeft.getAndRequireEquals();
+        let curGuesser = this.guesser.getAndRequireEquals();
         let curGuessedNumber = this.guessedNumber.getAndRequireEquals();
     
         curGuessedNumber.assertEquals(Field(0), "You have already guessed number");
+        curGuessLeft.assertGreaterThan(UInt64.from(0), 'There is no more guesses');
     
         const sender = this.sender.getAndRequireSignature();
         const senderHash = Poseidon.hash(sender.toFields());
-    
+
+        const guesserCheck = curGuesser
+          .equals(Field(0))
+          .or(curGuesser.equals(senderHash));
+        guesserCheck.assertTrue('Another user is guessing');
+
+        this.guessLeft.set(curGuessLeft.sub(1));
         this.guessedNumber.set(number);
         this.guesser.set(senderHash);
     }
 
-    @method async revealNumber(
-        hiddenValue: HiddenValue,
-        score: Field,
-        scoreWitness: MerkleMapWitness
-      ) {
-        // Check hidden value
-        let currentHiddenNumber = this.hiddenNumber.getAndRequireEquals();
-        currentHiddenNumber.assertEquals(
-          hiddenValue.hash(),
-          'It is not hidden number'
-        );
-    
-        // Check score witness
-        const [prevScoreRoot, key] = scoreWitness.computeRootAndKeyV2(score);
-    
-        this.scoreRoot
-          .getAndRequireEquals()
-          .assertEquals(prevScoreRoot, 'Wrong score witness');
-    
-        const guesserHash = this.guesser.getAndRequireEquals();
-        key.assertEquals(guesserHash, 'Witness for wrong user');
-    
-        // Check guess
-        const guessedNumber = this.guessedNumber.getAndRequireEquals();
-        const scoreDiff = Provable.if(
-          hiddenValue.value.equals(guessedNumber),
-          Field(1),
-          Field(0)
-        );
-    
-        const [newScoreRoot] = scoreWitness.computeRootAndKeyV2(
-          score.add(scoreDiff)
-        );
-    
-        this.scoreRoot.set(newScoreRoot);
-        this.hiddenNumber.set(Field(0));
-        this.guessedNumber.set(Field(0));
-        this.guesser.set(Field(0));
+    @method async checkValue(checkProof: CheckProof) {
+      const curHiddenNumber = this.hiddenNumber.getAndRequireEquals();
+      const curGuessedNumber = this.guessedNumber.getAndRequireEquals();
+  
+      curGuessedNumber.assertGreaterThan(Field(0), 'No guessed number');
+  
+      checkProof.verify();
+      checkProof.publicInput.guessedNumber.assertEquals(curGuessedNumber);
+      checkProof.publicOutput.hiddenValueHash.assertEquals(curHiddenNumber);
+  
+      this.clue.set(checkProof.publicOutput.clue);
+      this.guessedNumber.set(Field(0));
+    }
+
+    @method async updateScore(score: Field, scoreWitness: MerkleMapWitness) {
+      let curGuessLeft = this.guessLeft.getAndRequireEquals();
+      let currentHiddenNumber = this.hiddenNumber.getAndRequireEquals();
+      let curClue = this.clue.getAndRequireEquals();
+      let curScoreRoot = this.scoreRoot.getAndRequireEquals();
+
+      currentHiddenNumber.assertGreaterThan(Field(0), 'No hidden value');
+      curClue
+            .equals(EQUALS)
+            .or(curGuessLeft.equals(UInt64.zero))
+            .assertTrue('Conditions are not met for update score');
+
+      const [prevScoreRoot, key] = scoreWitness.computeRootAndKeyV2(score);
+
+      curScoreRoot.assertEquals(prevScoreRoot, 'Wrong score witness');
+
+      const guesserHash = this.guesser.getAndRequireEquals();
+      key.assertEquals(guesserHash, 'Witness for wrong user');
+
+      let scoreDiff = Provable.if(curClue.equals(EQUALS), Field(1), Field(0));
+
+      const [newScoreRoot] = scoreWitness.computeRootAndKeyV2(
+        score.add(scoreDiff)
+      );
+
+      this.scoreRoot.set(newScoreRoot);
+      this.hiddenNumber.set(Field(0));
+      this.guessedNumber.set(Field(0));
+      this.guesser.set(Field(0));
     }
 }
 
