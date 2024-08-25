@@ -1,14 +1,6 @@
 import { Field, MerkleMap, MerkleMapWitness, method, Poseidon, Provable, SmartContract, State, state, Struct, UInt64 } from 'o1js';
-import { CheckProof, EQUALS } from './CheckProof';
-
-export class HiddenValue extends Struct({
-    value: Field,
-    salt: Field,
-  }) {
-    hash(): Field {
-      return Poseidon.hash([this.value, this.salt]);
-    }
-  }
+import { CheckProof, EQUALS } from './CheckProof.js';
+import { HiddenValue } from './Structs.js';
 
 export const DefaultGuessLeft = UInt64.from(5);
 

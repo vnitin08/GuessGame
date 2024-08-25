@@ -1,5 +1,6 @@
 import { Field, Provable, Struct, UInt64, ZkProgram } from "o1js";
-import { HiddenValue } from "./GuessGame";
+import { HiddenValue } from "./Structs.js";
+
 
 export const LESS = UInt64.from(1);
 export const EQUALS = UInt64.from(2);

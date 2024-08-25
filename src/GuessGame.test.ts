@@ -1,8 +1,9 @@
 import { AccountUpdate, Field, MerkleMap, Mina, Poseidon, PrivateKey, PublicKey } from 'o1js';
-import { GuessGame, HiddenValue } from './GuessGame';
+import { GuessGame} from './GuessGame';
 import { Pickles } from 'o1js/dist/node/snarky';
 import { dummyBase64Proof } from 'o1js/dist/node/lib/proof-system/zkprogram';
 import { check, CheckProof, CheckProofPublicInput, EQUALS, GREATER, LESS } from './CheckProof';
+import { HiddenValue } from './Structs';
 
 export async function mockProof<I, O, P>(
   publicOutput: O,
